@@ -48,10 +48,10 @@ install-initd:
 	$(INSTALL_DATA) init.d/sysconfig.xendomains $(DESTDIR)$(SYSCONFIG_DIR)/xendomains
 	$(INSTALL_DATA) init.d/sysconfig.xencommons $(DESTDIR)$(SYSCONFIG_DIR)/xencommons
 	$(INSTALL_PROG) xendomains $(DESTDIR)$(LIBEXEC_BIN)
-	$(INSTALL_PROG) init.d/xendomains $(DESTDIR)$(INITD_DIR)
-	$(INSTALL_PROG) init.d/xencommons $(DESTDIR)$(INITD_DIR)
+	$(INSTALL_PROG) init.d/xendomains $(DESTDIR)$(INITD_DIR)/S60xendomains
+	$(INSTALL_PROG) init.d/xencommons $(DESTDIR)$(INITD_DIR)/S50xencommons
 	$(INSTALL_PROG) init.d/xendriverdomain $(DESTDIR)$(INITD_DIR)
-	$(INSTALL_PROG) init.d/xen-watchdog $(DESTDIR)$(INITD_DIR)
+	$(INSTALL_PROG) init.d/xen-watchdog $(DESTDIR)$(INITD_DIR)/S50xen-watchdog
 
 .PHONY: uninstall-initd
 uninstall-initd:

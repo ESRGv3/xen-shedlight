@@ -34,6 +34,7 @@
 #include <xen/serial.h>
 
 #ifdef CONFIG_CACHE_COLORING
+#include <asm/coloring.h>
 #define XEN_DOM0_CREATE_FLAGS CDF_privileged
 #else
 #define XEN_DOM0_CREATE_FLAGS CDF_privileged | CDF_directmap
@@ -3826,6 +3827,7 @@ void __init create_domUs(void)
     struct dt_device_node *node;
     const struct dt_device_node *cpupool_node,
                                 *chosen = dt_find_node_by_path("/chosen");
+    const char * __maybe_unused colors_str;
 
     BUG_ON(chosen == NULL);
     dt_for_each_child_node(chosen, node)
@@ -3913,6 +3915,13 @@ void __init create_domUs(void)
                       pool_id);
             d_cfg.cpupool_id = pool_id;
         }
+
+#ifdef CONFIG_CACHE_COLORING
+        if ( dt_find_property(node, "xen,static-mem", NULL) )
+            panic("static-mem is not valid when cache coloring is enabled\n");
+        if ( !dt_property_read_string(node, "colors", &colors_str) )
+            prepare_color_domain_config(&d_cfg.arch, colors_str);
+#endif
 
         /*
          * The variable max_init_domid is initialized with zero, so here it's

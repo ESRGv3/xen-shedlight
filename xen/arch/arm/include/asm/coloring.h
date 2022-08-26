@@ -36,4 +36,7 @@ int domain_coloring_init(struct domain *d,
 void domain_coloring_free(struct domain *d);
 void domain_dump_coloring_info(struct domain *d);
 
+void prepare_color_domain_config(struct xen_arch_domainconfig *config,
+                                 const char *colors_str);
+
 #endif /* !__ASM_ARM_COLORING_H__ */

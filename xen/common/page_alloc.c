@@ -605,6 +605,27 @@ static struct page_info *alloc_col_domheap_page(struct domain *d,
     return pg;
 }
 
+static void dump_col_heap(unsigned char key)
+{
+    struct page_info *pg;
+    unsigned long pages;
+    unsigned int color;
+
+    printk("'%c' pressed -> dumping coloring heap info\n", key);
+
+    for ( color = 0; color < get_max_colors(); color++ )
+    {
+        printk("Heap[%u]: ", color);
+        pages = 0;
+        page_list_for_each( pg, colored_pages(color) )
+        {
+            BUG_ON(!(page_to_color(pg) == color));
+            pages++;
+        }
+        printk("%lu pages\n", pages);
+    }
+}
+
 size_param("buddy-alloc-size", buddy_alloc_size);
 #else
 static void free_col_domheap_page(struct page_info *pg)
@@ -2853,6 +2874,9 @@ static void cf_check dump_heap(unsigned char key)
 static __init int cf_check register_heap_trigger(void)
 {
     register_keyhandler('H', dump_heap, "dump heap info", 1);
+#ifdef CONFIG_CACHE_COLORING
+    register_keyhandler('k', dump_col_heap, "dump coloring heap info", 1);
+#endif
     return 0;
 }
 __initcall(register_heap_trigger);

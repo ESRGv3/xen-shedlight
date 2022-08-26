@@ -31,6 +31,10 @@
 #include <asm/processor.h>
 #include <asm/sysregs.h>
 
+/* By default Xen uses the lowestmost color */
+#define XEN_DEFAULT_COLOR       0
+#define XEN_DEFAULT_NUM_COLORS  1
+
 /* Size of a LLC way */
 static unsigned int llc_way_size;
 /* Number of colors available in the LLC */
@@ -41,6 +45,9 @@ static uint64_t addr_col_mask;
 #define addr_to_color(addr) (((addr) & addr_col_mask) >> PAGE_SHIFT)
 #define addr_set_color(addr, color) (((addr) & ~addr_col_mask) \
                                      | ((color) << PAGE_SHIFT))
+
+static unsigned int xen_colors[CONFIG_MAX_CACHE_COLORS];
+static unsigned int xen_num_colors;
 
 static unsigned int dom0_colors[CONFIG_MAX_CACHE_COLORS];
 static unsigned int dom0_num_colors;
@@ -92,6 +99,12 @@ static int parse_color_config(const char *buf, unsigned int *colors,
 }
 
 size_param("llc-way-size", llc_way_size);
+
+static int __init parse_xen_colors(const char *s)
+{
+    return parse_color_config(s, xen_colors, &xen_num_colors);
+}
+custom_param("xen-colors", parse_xen_colors);
 
 static int __init parse_dom0_colors(const char *s)
 {
@@ -187,6 +200,8 @@ static void dump_coloring_info(unsigned char key)
     printk("LLC way size: %u KiB\n", llc_way_size >> 10);
     printk("Number of LLC colors supported: %u\n", max_colors);
     printk("Address color mask: 0x%lx\n", addr_col_mask);
+    printk("Xen colors: ");
+    print_colors(xen_colors, xen_num_colors);
 }
 
 bool __init coloring_init(void)
@@ -203,6 +218,21 @@ bool __init coloring_init(void)
        map colors to bits of an address. */
     ASSERT((max_colors & (max_colors - 1)) == 0);
     addr_col_mask = (max_colors - 1) << PAGE_SHIFT;
+
+    if ( !xen_num_colors )
+    {
+        printk(XENLOG_WARNING
+               "Xen color config not found. Using default color: %u\n",
+               XEN_DEFAULT_COLOR);
+        xen_colors[0] = XEN_DEFAULT_COLOR;
+        xen_num_colors = XEN_DEFAULT_NUM_COLORS;
+    }
+
+    if ( !check_colors(xen_colors, xen_num_colors) )
+    {
+        printk(XENLOG_ERR "Bad color config for Xen\n");
+        return false;
+    }
 
     if ( !dom0_num_colors )
     {

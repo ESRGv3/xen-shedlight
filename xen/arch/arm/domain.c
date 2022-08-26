@@ -23,6 +23,9 @@
 #include <xen/wait.h>
 
 #include <asm/alternative.h>
+#ifdef CONFIG_CACHE_COLORING
+#include <asm/coloring.h>
+#endif
 #include <asm/cpuerrata.h>
 #include <asm/cpufeature.h>
 #include <asm/current.h>
@@ -712,6 +715,11 @@ int arch_domain_create(struct domain *d,
     ioreq_domain_init(d);
 #endif
 
+#ifdef CONFIG_CACHE_COLORING
+    if ( (rc = domain_coloring_init(d, &config->arch)) )
+        goto fail;
+#endif
+
     /* p2m_init relies on some value initialized by the IOMMU subsystem */
     if ( (rc = iommu_domain_init(d, config->iommu_opts)) != 0 )
         goto fail;
@@ -807,6 +815,9 @@ void arch_domain_destroy(struct domain *d)
                        get_order_from_bytes(d->arch.efi_acpi_len));
 #endif
     domain_io_free(d);
+#ifdef CONFIG_CACHE_COLORING
+    domain_coloring_free(d);
+#endif
 }
 
 void arch_domain_shutdown(struct domain *d)

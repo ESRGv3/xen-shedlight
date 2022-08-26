@@ -33,6 +33,12 @@
 #include <xen/grant_table.h>
 #include <xen/serial.h>
 
+#ifdef CONFIG_CACHE_COLORING
+#define XEN_DOM0_CREATE_FLAGS CDF_privileged
+#else
+#define XEN_DOM0_CREATE_FLAGS CDF_privileged | CDF_directmap
+#endif
+
 #define STATIC_EVTCHN_NODE_SIZE_CELLS 2
 
 static unsigned int __initdata opt_dom0_max_vcpus;
@@ -3963,7 +3969,10 @@ static int __init construct_dom0(struct domain *d)
     /* type must be set before allocate_memory */
     d->arch.type = kinfo.type;
 #endif
-    allocate_memory_11(d, &kinfo);
+    if ( IS_ENABLED(CONFIG_CACHE_COLORING) )
+        allocate_memory(d, &kinfo);
+    else
+        allocate_memory_11(d, &kinfo);
     find_gnttab_region(d, &kinfo);
 
 #ifdef CONFIG_STATIC_SHM
@@ -4025,7 +4034,7 @@ void __init create_dom0(void)
     if ( iommu_enabled )
         dom0_cfg.flags |= XEN_DOMCTL_CDF_iommu;
 
-    dom0 = domain_create(0, &dom0_cfg, CDF_privileged | CDF_directmap);
+    dom0 = domain_create(0, &dom0_cfg, XEN_DOM0_CREATE_FLAGS);
     if ( IS_ERR(dom0) || (alloc_dom0_vcpu0(dom0) == NULL) )
         panic("Error creating domain 0\n");
 

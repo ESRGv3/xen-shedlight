@@ -13,7 +13,7 @@ In order to enable and use it, few steps are needed.
   (refer to menuconfig help for value meaning and when it should be changed).
 
         CONFIG_MAX_CACHE_COLORS=<n>
-- Assign colors to Dom0 using the `Color selection format`_ (see
+- Assign colors to domains using the `Color selection format`_ (see
   `Coloring parameters`_ for more documentation pointers).
 
 Background
@@ -110,3 +110,6 @@ Coloring parameters
 LLC way size (as previously discussed) and Dom0 colors can be set using the
 appropriate command line parameters. See the relevant documentation in
 "docs/misc/xen-command-line.pandoc".
+
+Note that if no color configuration is provided for domains, they fallback to
+the default one, which corresponds simply to all available colors.

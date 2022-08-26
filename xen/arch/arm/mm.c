@@ -368,6 +368,17 @@ static inline lpae_t pte_of_xenaddr(vaddr_t va)
     return mfn_to_xen_entry(maddr_to_mfn(ma), MT_NORMAL);
 }
 
+static void __init create_boot_mappings(unsigned long virt_offset,
+                                        mfn_t base_mfn)
+{
+    lpae_t pte;
+
+    pte = mfn_to_xen_entry(base_mfn, MT_NORMAL);
+    write_pte(&boot_second[second_table_offset(virt_offset)], pte);
+    flush_xen_tlb_local();
+}
+
+/* Map the FDT in the early boot page table */
 void * __init early_fdt_map(paddr_t fdt_paddr)
 {
     /* We are using 2MB superpage for mapping the FDT */
@@ -375,7 +386,6 @@ void * __init early_fdt_map(paddr_t fdt_paddr)
     paddr_t offset;
     void *fdt_virt;
     uint32_t size;
-    int rc;
 
     /*
      * Check whether the physical FDT address is set and meets the minimum
@@ -391,12 +401,7 @@ void * __init early_fdt_map(paddr_t fdt_paddr)
     /* The FDT is mapped using 2MB superpage */
     BUILD_BUG_ON(BOOT_FDT_VIRT_START % SZ_2M);
 
-    rc = map_pages_to_xen(BOOT_FDT_VIRT_START, maddr_to_mfn(base_paddr),
-                          SZ_2M >> PAGE_SHIFT,
-                          PAGE_HYPERVISOR_RO | _PAGE_BLOCK);
-    if ( rc )
-        panic("Unable to map the device-tree.\n");
-
+    create_boot_mappings(BOOT_FDT_VIRT_START, maddr_to_mfn(base_paddr));
 
     offset = fdt_paddr % SECOND_SIZE;
     fdt_virt = (void *)BOOT_FDT_VIRT_START + offset;
@@ -410,12 +415,8 @@ void * __init early_fdt_map(paddr_t fdt_paddr)
 
     if ( (offset + size) > SZ_2M )
     {
-        rc = map_pages_to_xen(BOOT_FDT_VIRT_START + SZ_2M,
-                              maddr_to_mfn(base_paddr + SZ_2M),
-                              SZ_2M >> PAGE_SHIFT,
-                              PAGE_HYPERVISOR_RO | _PAGE_BLOCK);
-        if ( rc )
-            panic("Unable to map the device-tree\n");
+        create_boot_mappings(BOOT_FDT_VIRT_START + SZ_2M,
+                             maddr_to_mfn(base_paddr + SZ_2M));
     }
 
     return fdt_virt;
@@ -513,6 +514,12 @@ void __init setup_pagetables(unsigned long boot_phys_offset)
     pte = pte_of_xenaddr((vaddr_t)xen_fixmap);
     pte.pt.table = 1;
     xen_second[second_table_offset(FIXMAP_ADDR(0))] = pte;
+
+    /* ... DTB */
+    pte = boot_second[second_table_offset(BOOT_FDT_VIRT_START)];
+    xen_second[second_table_offset(BOOT_FDT_VIRT_START)] = pte;
+    pte = boot_second[second_table_offset(BOOT_FDT_VIRT_START + SZ_2M)];
+    xen_second[second_table_offset(BOOT_FDT_VIRT_START + SZ_2M)] = pte;
 
 #ifdef CONFIG_ARM_64
     ttbr = (uintptr_t) xen_pgtable + phys_offset;

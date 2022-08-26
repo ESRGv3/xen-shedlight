@@ -14,6 +14,10 @@ void vm_init_type(enum vmap_region type, void *start, void *end);
 
 void *__vmap(const mfn_t *mfn, unsigned int granularity, unsigned int nr,
              unsigned int align, unsigned int flags, enum vmap_region);
+#ifdef CONFIG_CACHE_COLORING
+void *__vmap_colored(const mfn_t *mfn, unsigned int nr, unsigned int align,
+                     unsigned int flags, enum vmap_region);
+#endif
 void *vmap(const mfn_t *mfn, unsigned int nr);
 void vunmap(const void *);
 

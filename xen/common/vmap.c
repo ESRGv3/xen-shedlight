@@ -8,6 +8,9 @@
 #include <xen/types.h>
 #include <xen/vmap.h>
 #include <asm/page.h>
+#ifdef CONFIG_CACHE_COLORING
+#include <asm/coloring.h>
+#endif
 
 static DEFINE_SPINLOCK(vm_lock);
 static void *__read_mostly vm_base[VMAP_REGION_NR];
@@ -217,6 +220,28 @@ void *__vmap(const mfn_t *mfn, unsigned int granularity,
 
     return va;
 }
+
+#ifdef CONFIG_CACHE_COLORING
+void * __vmap_colored(const mfn_t *mfn, unsigned int nr, unsigned int align,
+                      unsigned int flags, enum vmap_region type)
+{
+    void *va = vm_alloc(nr, align, type);
+    unsigned long cur = (unsigned long)va;
+    paddr_t pa = mfn_to_maddr(*mfn);
+
+    for ( ; va && nr-- ; cur += PAGE_SIZE )
+    {
+        pa = next_xen_colored(pa);
+        if ( map_pages_to_xen(cur, maddr_to_mfn(pa), 1, flags) )
+        {
+            vunmap(va);
+            return NULL;
+        }
+        pa += PAGE_SIZE;
+    }
+    return va;
+}
+#endif
 
 void *vmap(const mfn_t *mfn, unsigned int nr)
 {

@@ -25,9 +25,19 @@
 #define __ASM_ARM_COLORING_H__
 
 #include <xen/init.h>
+#include <xen/lib.h>
 #include <xen/sched.h>
 
 #include <public/arch-arm.h>
+
+/*
+ * Amount of memory that we need to map in order to color Xen. The value
+ * depends on the maximum number of available colors of the hardware. The
+ * memory size is pessimistically calculated assuming only one color is used,
+ * which means that any pages belonging to any other color has to be skipped.
+ */
+#define XEN_COLOR_MAP_SIZE \
+    ROUNDUP((_end - _start) * get_max_colors(), XEN_PADDR_ALIGN)
 
 struct page_info;
 
@@ -44,5 +54,7 @@ void prepare_color_domain_config(struct xen_arch_domainconfig *config,
 unsigned int page_to_color(struct page_info *pg);
 
 unsigned int get_max_colors(void);
+
+paddr_t next_xen_colored(paddr_t phys);
 
 #endif /* !__ASM_ARM_COLORING_H__ */

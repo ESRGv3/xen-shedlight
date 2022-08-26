@@ -196,11 +196,15 @@ extern unsigned long total_pages;
 #define PDX_GROUP_SHIFT SECOND_SHIFT
 
 /* Boot-time pagetable setup */
-extern void setup_pagetables(unsigned long boot_phys_offset);
+extern void setup_pagetables(unsigned long boot_phys_offset, paddr_t xen_paddr);
 /* Map FDT in boot pagetable */
 extern void *early_fdt_map(paddr_t fdt_paddr);
 /* Remove early mappings */
 extern void remove_early_mappings(void);
+#ifdef CONFIG_CACHE_COLORING
+/* Remove early coloring mappings */
+extern void remove_coloring_mappings(void);
+#endif
 /* Allocate and initialise pagetables for a secondary CPU. Sets init_ttbr to the
  * new page table */
 extern int init_secondary_pagetables(int cpu);
@@ -408,6 +412,19 @@ static inline void page_set_xenheap_gfn(struct page_info *p, gfn_t gfn)
         nx = (x & ~PGT_gfn_mask) | gfn_x(gfn_);
     } while ( (y = cmpxchg(&p->u.inuse.type_info, x, nx)) != x );
 }
+
+#ifdef CONFIG_CACHE_COLORING
+#define virt_boot_xen(virt)\
+    (vaddr_t)(virt - XEN_VIRT_START + BOOT_RELOC_VIRT_START)
+#define set_value_for_secondary(var, val) \
+    *(typeof(var) *)(virt_boot_xen((vaddr_t)&var)) = val; \
+    clean_dcache(var);
+#else
+#define virt_boot_xen(virt) virt
+#define set_value_for_secondary(var, val) \
+    var = val;
+    clean_dcache(var);
+#endif
 
 #endif /*  __ARCH_ARM_MM__ */
 /*

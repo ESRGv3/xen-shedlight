@@ -340,6 +340,22 @@ unsigned int get_max_colors(void)
     return max_colors;
 }
 
+paddr_t next_xen_colored(paddr_t phys)
+{
+    unsigned int i, color = addr_to_color(phys);
+
+    for( i = 0; i < xen_num_colors; i++ )
+    {
+        if ( color == xen_colors[i] )
+            return phys;
+        else if ( color < xen_colors[i] )
+            return addr_set_color(phys, xen_colors[i]);
+    }
+
+    /* Jump to next color space (llc_way_size bytes) and use the first color */
+    return addr_set_color(phys + llc_way_size, xen_colors[0]);
+}
+
 /*
  * Local variables:
  * mode: C

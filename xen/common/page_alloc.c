@@ -150,6 +150,9 @@
 #define p2m_pod_offline_or_broken_hit(pg) 0
 #define p2m_pod_offline_or_broken_replace(pg) BUG_ON(pg != NULL)
 #endif
+#ifdef CONFIG_CACHE_COLORING
+#include <asm/coloring.h>
+#endif
 
 #ifndef PGC_static
 #define PGC_static 0
@@ -230,6 +233,9 @@ static bool __read_mostly scrub_debug;
 #else
 #define scrub_debug    false
 #endif
+
+/* Memory required for buddy allocator to work with colored one */
+static unsigned long __initdata buddy_alloc_size;
 
 /*
  * Bit width of the DMA heap -- used to override NUMA-node-first.
@@ -440,7 +446,172 @@ mfn_t __init alloc_boot_pages(unsigned long nr_pfns, unsigned long pfn_align)
     BUG();
 }
 
+static DEFINE_SPINLOCK(heap_lock);
 
+/* Initialise fields which have other uses for free pages. */
+static void init_free_page_fields(struct page_info *pg)
+{
+    pg->u.inuse.type_info = PGT_TYPE_INFO_INITIALIZER;
+    page_set_owner(pg, NULL);
+}
+
+static bool is_page_colored(struct page_info *pg)
+{
+    return pg->count_info & PGC_colored;
+}
+
+#ifdef CONFIG_CACHE_COLORING
+/*************************
+ * COLORED SIDE-ALLOCATOR
+ *
+ * Pages are stored by their color in separate lists. Each list defines a color
+ * and it is initialized during end_boot_allocator, where each page's color
+ * is calculated and the page itself is put in the correct list.
+ * After initialization there will be N lists where N is the number of maximum
+ * available colors on the platform.
+ */
+typedef struct page_list_head colored_pages_t;
+static colored_pages_t __ro_after_init *color_heap;
+
+#define colored_pages(color) &color_heap[(color)]
+
+static void color_heap_insert_page(struct page_info *pg)
+{
+    struct page_info *pos;
+    struct page_list_head *head = colored_pages(page_to_color(pg));
+
+    pg->count_info |= PGC_colored;
+
+    /* Insert page in list in ascending machine address order */
+    page_list_for_each( pos, head )
+    {
+        if ( page_to_maddr(pos) < page_to_maddr(pg) )
+        {
+            head = &pos->list;
+            break;
+        }
+    }
+
+    page_list_add_tail(pg, head);
+}
+
+static void color_heap_remove_page(struct page_info *pg)
+{
+    page_list_del(pg, colored_pages(page_to_color(pg)));
+}
+
+static void __init init_col_heap_pages(struct page_info *pg,
+                                       unsigned long nr_pages)
+{
+    unsigned int i;
+
+    if ( !color_heap )
+    {
+        unsigned int max_colors = get_max_colors();
+        color_heap = xmalloc_array(colored_pages_t, max_colors);
+        BUG_ON(!color_heap);
+
+        for ( i = 0; i < max_colors; i++ )
+            INIT_PAGE_LIST_HEAD(colored_pages(i));
+
+        if ( !buddy_alloc_size )
+            buddy_alloc_size = parse_size_and_unit(CONFIG_BUDDY_ALLOCATOR_SIZE,
+                                                   NULL);
+    }
+
+    printk(XENLOG_INFO "Init color heap with %lu pages\n", nr_pages);
+    printk(XENLOG_INFO "Paging starting from: 0x%"PRIx64"\n",
+           page_to_maddr(pg));
+
+    for ( i = 0; i < nr_pages; i++ )
+        color_heap_insert_page(pg++);
+}
+
+/* Alloc one page based on domain color configuration */
+static struct page_info *alloc_col_heap_page(unsigned int memflags,
+                                             const unsigned int *colors,
+                                             unsigned int num_colors)
+{
+    struct page_info *pg = NULL;
+    unsigned int i;
+    bool need_tlbflush = false;
+    uint32_t tlbflush_timestamp = 0;
+
+    spin_lock(&heap_lock);
+
+    for ( i = 0; i < num_colors; i++ )
+    {
+        struct page_info *tmp;
+
+        if ( page_list_empty(colored_pages(colors[i])) )
+            continue;
+
+        tmp = page_list_first(colored_pages(colors[i]));
+        if ( !pg || page_to_maddr(tmp) > page_to_maddr(pg) )
+            pg = tmp;
+    }
+
+    if ( !pg )
+    {
+        spin_unlock(&heap_lock);
+        return NULL;
+    }
+
+    pg->count_info = PGC_state_inuse;
+
+    if ( !(memflags & MEMF_no_tlbflush) )
+        accumulate_tlbflush(&need_tlbflush, pg, &tlbflush_timestamp);
+
+    init_free_page_fields(pg);
+    flush_page_to_ram(mfn_x(page_to_mfn(pg)),
+                      !(memflags & MEMF_no_icache_flush));
+    color_heap_remove_page(pg);
+
+    spin_unlock(&heap_lock);
+
+    if ( need_tlbflush )
+        filtered_flush_tlb_mask(tlbflush_timestamp);
+
+    return pg;
+}
+
+static void free_col_domheap_page(struct page_info *pg)
+{
+    pg->count_info = PGC_state_free;
+    page_set_owner(pg, NULL);
+    color_heap_insert_page(pg);
+}
+
+static struct page_info *alloc_col_domheap_page(struct domain *d,
+                                                unsigned int memflags)
+{
+    struct page_info *pg;
+
+    ASSERT(!in_irq());
+
+    pg = alloc_col_heap_page(memflags, d->arch.colors, d->arch.num_colors);
+    if ( !pg )
+    {
+        printk(XENLOG_ERR "Colored page is null for domain %pd\n", d);
+        return NULL;
+    }
+
+    if ( d && !(memflags & MEMF_no_owner) && assign_page(pg, 0, d, memflags) )
+    {
+        free_col_domheap_page(pg);
+        return NULL;
+    }
+
+    return pg;
+}
+
+size_param("buddy-alloc-size", buddy_alloc_size);
+#else
+static void free_col_domheap_page(struct page_info *pg)
+{
+    return;
+}
+#endif /* CONFIG_CACHE_COLORING */
 
 /*************************
  * BINARY BUDDY ALLOCATOR
@@ -462,7 +633,6 @@ static unsigned long node_need_scrub[MAX_NUMNODES];
 static unsigned long *avail[MAX_NUMNODES];
 static long total_avail_pages;
 
-static DEFINE_SPINLOCK(heap_lock);
 static long outstanding_claims; /* total outstanding claims by all domains */
 
 unsigned long domain_adjust_tot_pages(struct domain *d, long pages)
@@ -1027,10 +1197,7 @@ static struct page_info *alloc_heap_pages(
             accumulate_tlbflush(&need_tlbflush, &pg[i],
                                 &tlbflush_timestamp);
 
-        /* Initialise fields which have other uses for free pages. */
-        pg[i].u.inuse.type_info = PGT_TYPE_INFO_INITIALIZER;
-        page_set_owner(&pg[i], NULL);
-
+        init_free_page_fields(&pg[i]);
     }
 
     spin_unlock(&heap_lock);
@@ -1926,6 +2093,7 @@ static unsigned long avail_heap_pages(
 void __init end_boot_allocator(void)
 {
     unsigned int i;
+    unsigned long buddy_pages = PFN_DOWN(buddy_alloc_size);
 
     /* Pages that are free now go to the domain sub-allocator. */
     for ( i = 0; i < nr_bootmem_regions; i++ )
@@ -1939,11 +2107,24 @@ void __init end_boot_allocator(void)
             break;
         }
     }
-    for ( i = nr_bootmem_regions; i-- > 0; )
+
+    for ( i = 0; i < nr_bootmem_regions; i++ )
     {
         struct bootmem_region *r = &bootmem_region_list[i];
+
+        if ( buddy_pages && (r->s < r->e) )
+        {
+            unsigned long pages = MIN(r->e - r->s, buddy_pages);
+            init_heap_pages(mfn_to_page(_mfn(r->s)), pages);
+            r->s += pages;
+            buddy_pages -= pages;
+        }
         if ( r->s < r->e )
+#ifdef CONFIG_CACHE_COLORING
+            init_col_heap_pages(mfn_to_page(_mfn(r->s)), r->e - r->s);
+#else
             init_heap_pages(mfn_to_page(_mfn(r->s)), r->e - r->s);
+#endif
     }
     nr_bootmem_regions = 0;
 
@@ -2429,6 +2610,17 @@ struct page_info *alloc_domheap_pages(
 
     ASSERT_ALLOC_CONTEXT();
 
+#ifdef CONFIG_CACHE_COLORING
+    /* Only domains are supported for coloring */
+    if ( d )
+    {
+        /* Colored allocation must be done on 0 order */
+        if ( order )
+            return NULL;
+        return alloc_col_domheap_page(d, memflags);
+    }
+#endif
+
     bits = domain_clamp_alloc_bitsize(memflags & MEMF_no_owner ? NULL : d,
                                       bits ? : (BITS_PER_LONG+PAGE_SHIFT));
 
@@ -2546,7 +2738,10 @@ void free_domheap_pages(struct page_info *pg, unsigned int order)
             scrub = 1;
         }
 
-        free_heap_pages(pg, order, scrub);
+        if ( is_page_colored(pg) )
+            free_col_domheap_page(pg);
+        else
+            free_heap_pages(pg, order, scrub);
     }
 
     if ( drop_dom_ref )
@@ -2785,9 +2980,7 @@ static bool prepare_staticmem_pages(struct page_info *pg, unsigned long nr_mfns,
          * to PGC_state_inuse.
          */
         pg[i].count_info = PGC_static | PGC_state_inuse;
-        /* Initialise fields which have other uses for free pages. */
-        pg[i].u.inuse.type_info = PGT_TYPE_INFO_INITIALIZER;
-        page_set_owner(&pg[i], NULL);
+        init_free_page_fields(&pg[i]);
     }
 
     spin_unlock(&heap_lock);

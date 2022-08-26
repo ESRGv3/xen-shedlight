@@ -147,6 +147,18 @@ config MAX_CACHE_COLORS
 	  colors at boot. Note that if, at any time, a color configuration with more
 	  colors than the maximum will be employed an error will be produced.
 
+config BUDDY_ALLOCATOR_SIZE
+	string "Buddy allocator reserved memory size" if CACHE_COLORING
+	default "64M" if CACHE_COLORING
+	default "0M" if !CACHE_COLORING
+	help
+	  Amount of memory reserved for the buddy allocator to work alongside
+	  the colored one. The colored allocator is meant as an alternative to the
+	  buddy allocator because its allocation policy is by definition
+	  incompatible with the generic one. Since the Xen heap systems is not
+	  colored yet, we need to support the coexistence of the two allocators and
+	  some memory must be left for the buddy one.
+
 config TEE
 	bool "Enable TEE mediators support (UNSUPPORTED)" if UNSUPPORTED
 	default n

@@ -147,6 +147,9 @@ struct page_info
 #define PGC_count_width   PG_shift(10)
 #define PGC_count_mask    ((1UL<<PGC_count_width)-1)
 
+#define _PGC_colored      PG_shift(11)
+#define PGC_colored       PG_mask(1, 11)
+
 /*
  * Page needs to be scrubbed. Since this bit can only be set on a page that is
  * free (i.e. in PGC_state_free) we can reuse PGC_allocated bit.

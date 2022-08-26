@@ -53,6 +53,9 @@
 #include <asm/setup.h>
 #include <xsm/xsm.h>
 #include <asm/acpi.h>
+#ifdef CONFIG_CACHE_COLORING
+#include <asm/coloring.h>
+#endif
 
 struct bootinfo __initdata bootinfo;
 
@@ -1034,6 +1037,11 @@ void __init start_xen(unsigned long boot_phys_offset,
     cmdline = boot_fdt_cmdline(device_tree_flattened);
     printk("Command line: %s\n", cmdline);
     cmdline_parse(cmdline);
+
+#ifdef CONFIG_CACHE_COLORING
+    if ( !coloring_init() )
+        panic("Xen Coloring support: setup failed\n");
+#endif
 
     setup_mm();
 

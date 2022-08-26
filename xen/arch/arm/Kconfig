@@ -131,6 +131,22 @@ config ARM64_BTI
 	  Branch Target Identification support.
 	  This feature is not supported in Xen.
 
+config CACHE_COLORING
+	bool "Last Level Cache (LLC) coloring" if EXPERT
+	default n
+	depends on ARM_64
+
+config MAX_CACHE_COLORS
+	int "Maximum number of cache colors"
+	default 128
+	range 0 65536
+	depends on CACHE_COLORING
+	help
+	  This config value is an upper bound for the actual number of cache colors
+	  supported by the architecture. Xen preallocates this amount of cache
+	  colors at boot. Note that if, at any time, a color configuration with more
+	  colors than the maximum will be employed an error will be produced.
+
 config TEE
 	bool "Enable TEE mediators support (UNSUPPORTED)" if UNSUPPORTED
 	default n

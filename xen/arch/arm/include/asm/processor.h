@@ -420,6 +420,7 @@
 #define HDCR_TDE        (_AC(1,U)<<8)           /* Route Soft Debug exceptions from EL1/EL1 to EL2 */
 #define HDCR_TPM        (_AC(1,U)<<6)           /* Trap Performance Monitors accesses */
 #define HDCR_TPMCR      (_AC(1,U)<<5)           /* Trap PMCR accesses */
+#define HDCR_HPMN       (_AC(0x1f,U)<<0)          /* Number of allowed PMU counters for guest */
 
 #define HSR_EC_SHIFT                26
 

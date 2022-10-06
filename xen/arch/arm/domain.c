@@ -281,7 +281,7 @@ static void ctxt_switch_to(struct vcpu *n)
     WRITE_SYSREG(n->arch.cntkctl, CNTKCTL_EL1);
     virt_timer_restore(n);
 
-    WRITE_SYSREG(n->arch.mdcr_el2, MDCR_EL2);
+    // WRITE_SYSREG(n->arch.mdcr_el2, MDCR_EL2);
 }
 
 /* Update per-VCPU guest runstate shared memory area (if registered). */
@@ -570,6 +570,7 @@ void free_vcpu_struct(struct vcpu *v)
 int arch_vcpu_create(struct vcpu *v)
 {
     int rc = 0;
+    register_t mdcr_hpmn;
 
     BUILD_BUG_ON( sizeof(struct cpu_info) > STACK_SIZE );
 
@@ -595,7 +596,8 @@ int arch_vcpu_create(struct vcpu *v)
 
     v->arch.hcr_el2 = get_default_hcr_flags();
 
-    v->arch.mdcr_el2 = HDCR_TDRA | HDCR_TDOSA | HDCR_TDA;
+    mdcr_hpmn = READ_SYSREG(MDCR_EL2) & HDCR_HPMN;
+    v->arch.mdcr_el2 = HDCR_TDRA | HDCR_TDOSA | HDCR_TDA | mdcr_hpmn;
     if ( !(v->domain->options & XEN_DOMCTL_CDF_vpmu) )
         v->arch.mdcr_el2 |= HDCR_TPM | HDCR_TPMCR;
 

@@ -131,6 +131,7 @@ __initcall(update_serrors_cpu_caps);
 
 void init_traps(void)
 {
+    register_t mdcr_hpmn;
     /*
      * Setup Hyp vector base. Note they might get updated with the
      * branch predictor hardening.
@@ -138,8 +139,8 @@ void init_traps(void)
     WRITE_SYSREG((vaddr_t)hyp_traps_vector, VBAR_EL2);
 
     /* Trap Debug and Performance Monitor accesses */
-    WRITE_SYSREG(HDCR_TDRA|HDCR_TDOSA|HDCR_TDA|HDCR_TPM|HDCR_TPMCR,
-                 MDCR_EL2);
+    mdcr_hpmn = READ_SYSREG(MDCR_EL2) & HDCR_HPMN;
+    WRITE_SYSREG(HDCR_TDRA|HDCR_TDOSA|HDCR_TDA| mdcr_hpmn,  MDCR_EL2);
 
     /* Trap CP15 c15 used for implementation defined registers */
     WRITE_SYSREG(HSTR_T(15), HSTR_EL2);

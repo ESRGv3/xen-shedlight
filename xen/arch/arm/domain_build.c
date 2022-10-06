@@ -3957,11 +3957,11 @@ static int __init construct_dom0(struct domain *d)
     if ( CONFIG_DOM0_MEM[0] && !dom0_mem_set )
         parse_dom0_mem(CONFIG_DOM0_MEM);
 
-    if ( dom0_mem <= 0 )
-    {
-        warning_add("PLEASE SPECIFY dom0_mem PARAMETER - USING 512M FOR NOW\n");
-        dom0_mem = MB(512);
-    }
+    if ( dom0_mem <= 0 ) { return -1; }
+    // {
+    //     warning_add("PLEASE SPECIFY dom0_mem PARAMETER - USING 512M FOR NOW\n");
+    //     dom0_mem = MB(512);
+    // }
 
     iommu_hwdom_init(d);
 
@@ -4047,8 +4047,8 @@ void __init create_dom0(void)
     if ( IS_ERR(dom0) || (alloc_dom0_vcpu0(dom0) == NULL) )
         panic("Error creating domain 0\n");
 
-    if ( construct_dom0(dom0) != 0)
-        panic("Could not set up DOM0 guest OS\n");
+    if ( construct_dom0(dom0) != 0) {}
+        // panic("Could not set up DOM0 guest OS\n");
 }
 
 /*

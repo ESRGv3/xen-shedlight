@@ -559,7 +559,9 @@ static paddr_t __init consider_modules(paddr_t s, paddr_t e,
     }
     return e;
 }
+#endif
 
+#if defined (CONFIG_ARM_32)
 /*
  * Find a contiguous region that fits in the static heap region with
  * required size and alignment, and return the end address of the region

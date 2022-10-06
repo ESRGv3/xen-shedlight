@@ -418,11 +418,11 @@ static inline void page_set_xenheap_gfn(struct page_info *p, gfn_t gfn)
     (vaddr_t)(virt - XEN_VIRT_START + BOOT_RELOC_VIRT_START)
 #define set_value_for_secondary(var, val) \
     *(typeof(var) *)(virt_boot_xen((vaddr_t)&var)) = val; \
-    clean_dcache(var);
+    clean_dcache(*(typeof(var) *)virt_boot_xen((vaddr_t)&var));
 #else
 #define virt_boot_xen(virt) virt
 #define set_value_for_secondary(var, val) \
-    var = val;
+    var = val; \
     clean_dcache(var);
 #endif
 

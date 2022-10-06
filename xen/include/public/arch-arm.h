@@ -425,9 +425,9 @@ typedef uint64_t xen_callback_t;
  */
 
 /* vGIC v2 mappings */
-#define GUEST_GICD_BASE   xen_mk_ullong(0x03001000)
+#define GUEST_GICD_BASE   xen_mk_ullong(0xF9010000)
 #define GUEST_GICD_SIZE   xen_mk_ullong(0x00001000)
-#define GUEST_GICC_BASE   xen_mk_ullong(0x03002000)
+#define GUEST_GICC_BASE   xen_mk_ullong(0xF902f000)
 #define GUEST_GICC_SIZE   xen_mk_ullong(0x00002000)
 
 /* vGIC v3 mappings */

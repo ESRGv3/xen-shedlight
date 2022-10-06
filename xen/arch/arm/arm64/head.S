@@ -294,6 +294,11 @@ real_start_efi:
         adr   x19, start             /* x19 := paddr (start) */
         sub   x20, x19, x0           /* x20 := phys-offset */
 
+        ldr   x10, =boot_counter
+        add   x10, x10, x20
+        mrs   x11, CNTPCT_EL0
+        str   x11, [x10]
+
         /* Using the DTB in the .dtb section? */
 .ifnes CONFIG_DTB_FILE,""
         load_paddr x21, _sdtb

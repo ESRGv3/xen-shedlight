@@ -1052,6 +1052,8 @@ static bool __init is_dom0less_mode(void)
 
 size_t __read_mostly dcache_line_bytes;
 
+uint64_t boot_counter = 1;
+
 /* C entry point for boot CPU */
 void __init start_xen(unsigned long boot_phys_offset,
                       unsigned long fdt_paddr)
@@ -1145,7 +1147,7 @@ void __init start_xen(unsigned long boot_phys_offset,
     smp_init_cpus();
     nr_cpu_ids = smp_get_max_cpus();
     printk(XENLOG_INFO "SMP: Allowing %u CPUs\n", nr_cpu_ids);
-
+    printk(XENLOG_ERR "boottime-hyp %lu\n", boot_counter);
     /*
      * Some errata relies on SMCCC version which is detected by psci_init()
      * (called from smp_init_cpus()).

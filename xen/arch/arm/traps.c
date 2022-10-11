@@ -1393,6 +1393,11 @@ static void do_debug_trap(struct cpu_user_regs *regs, unsigned int code)
 #define HYPERCALL_ARG5(r) (r)->r4
 #endif
 
+extern uint64_t sgi_time;
+long do_sgi_time() {
+    return sgi_time;
+}
+
 static const unsigned char hypercall_args[] = hypercall_args_arm;
 
 static void do_trap_hypercall(struct cpu_user_regs *regs, register_t *nr,

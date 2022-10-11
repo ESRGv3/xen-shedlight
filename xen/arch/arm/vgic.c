@@ -572,6 +572,7 @@ void vgic_remove_irq_from_queues(struct vcpu *v, struct pending_irq *p)
     gic_remove_from_lr_pending(v, p);
 }
 
+uint64_t sgi_time;
 void vgic_inject_irq(struct domain *d, struct vcpu *v, unsigned int virq,
                      bool level)
 {
@@ -638,6 +639,7 @@ void vgic_inject_irq(struct domain *d, struct vcpu *v, unsigned int virq,
 out:
     spin_unlock_irqrestore(&v->arch.vgic.lock, flags);
 
+    sgi_time = READ_SYSREG64(CNTPCT_EL0);
     /* we have a new higher priority irq, inject it into the guest */
     vcpu_kick(v);
 

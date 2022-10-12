@@ -646,10 +646,10 @@ _MAP: $(TARGET)
 .PHONY: cloc
 cloc:
 	find . -name tools -prune -o -name '*.o.cmd' -print | while read f; do \
-	    for sf in $$(grep -o "[a-zA-Z0-9_/-]*\.[cS]" $$f); do \
+	    for sf in $$(grep -o "[a-zA-Z0-9_/-]*\.[cSh]" $$f); do \
 		test -f "$$sf" && echo "$$sf"; \
 	    done; \
-	done | cloc --list-file=-
+	done | cloc --by-file-by-lang --list-file=-
 
 # What cppcheck command to use.
 # To get proper results, it is recommended to build cppcheck manually from the

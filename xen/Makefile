@@ -646,10 +646,19 @@ _MAP: $(TARGET)
 .PHONY: cloc
 cloc:
 	find . -name tools -prune -o -name '*.o.cmd' -print | while read f; do \
-	    for sf in $$(grep -o "[a-zA-Z0-9_/-]*\.[cSh]" $$f); do \
-		test -f "$$sf" && echo "$$sf"; \
-	    done; \
-	done | cloc --by-file-by-lang --list-file=-
+	    for sf in $$(grep -o "[a-zA-Z0-9_/-]*\.[cS]" $$f); do \
+		test -f "$$sf" && echo "$$sf"; done; done > srclist.txt
+	mkdir -p preprocessed_headers
+	find . -name tools -prune -o -name '*.o.cmd' -print | while read f; do \
+		grep -o "[a-zA-Z0-9_/-]*\.[h]" $$f | grep -v public; done | \
+		xargs -L1 realpath --relative-to=. --canonicalize-existing 2> /dev/null | sort | uniq | grep -v 'public\|efi\|acpi'> hdrlist.txt
+		cat hdrlist.txt | while read line; do \
+			mkdir -p preprocessed_headers/$$(dirname $$(realpath --relative-to=. $$line)) && \
+			sed 's/\#include/\/\/\#include/g' $$line | \
+			aarch64-none-elf-gcc -E -include include/generated/autoconf.h - 2> errors.txt | \
+			grep -v '^#' > preprocessed_headers/$$(dirname $$(realpath --relative-to=. $$line))/$$(basename $$line); \
+		done
+	cloc --by-file-by-lang $$(cat srclist.txt) preprocessed_headers/*
 
 # What cppcheck command to use.
 # To get proper results, it is recommended to build cppcheck manually from the
